@@ -1,12 +1,12 @@
 /* version: 0.3.31, born: 17-10-2014 23:48 */
 var Absurd = (function(w) {
-var lib = { 
+var lib = {
     api: {},
     helpers: {},
     plugins: {},
-    processors: { 
+    processors: {
         css: { plugins: {}},
-        html: { 
+        html: {
             plugins: {},
             helpers: {}
         },
@@ -22,7 +22,7 @@ var require = function(v) {
     } else if(v.indexOf('component/Component.js') > 0) {
         return lib.processors.component.Component;
     } else if(v == 'js-beautify') {
-        return { 
+        return {
             html: function(html) {
                 return html;
             }
@@ -48,10 +48,10 @@ var require = function(v) {
     }
 };
 var __dirname = "";
-var queue  = function(funcs, scope) {
+var queue  = function(funcs, scope, options) {
 	(function next() {
 		if(funcs.length > 0) {
-			funcs.shift().apply(scope || {}, [next].concat(Array.prototype.slice.call(arguments, 0)));
+			funcs.shift().apply(scope || {}, [next].concat(Array.prototype.slice.call(arguments, 0)), options);
 		}
 	})();
 }
@@ -208,7 +208,7 @@ var toggleClass = function(className, el) {
             if (classes[i] === className)
                 existingIndex = i;
         }
-        
+
         if(existingIndex >= 0)
             classes.splice(existingIndex, 1);
         else
@@ -276,7 +276,12 @@ api.get = function(key) {
 	return storage[key];
 };
 var CSS = false;
-api.__handleCSS = function(next) {
+api.__handleCSS = function(next, options) {
+  options = options || {};
+  if (options.css === false) {
+    next();
+  }
+
 	if(this.css) {
 		absurd.flush().morph('dynamic-css').add(this.css).compile(function(err, css) {
 			if(!CSS) {
@@ -314,7 +319,7 @@ api.applyCSS = function(data, preventComposition, skipAutoPopulation) {
 };
 var HTMLSource = false;
 
-api.__mergeDOMElements = function(e1, e2) {	
+api.__mergeDOMElements = function(e1, e2) {
 	removeEmptyTextNodes(e1);
 	removeEmptyTextNodes(e2);
 	if(typeof e1 === 'undefined' || typeof e2 === 'undefined' || e1.isEqualNode(e2)) return;
@@ -364,7 +369,7 @@ api.__mergeDOMElements = function(e1, e2) {
 		}
 	} else {
 		for(var i=0; i<e2.childNodes.length; i++) {
-			e1.appendChild(document.createTextNode(""));						
+			e1.appendChild(document.createTextNode(""));
 			newNodesToMerge.push([e1.childNodes[i], e2.childNodes[i]]);
 		}
 	}
@@ -372,7 +377,12 @@ api.__mergeDOMElements = function(e1, e2) {
 		api.__mergeDOMElements(newNodesToMerge[i][0], newNodesToMerge[i][1]);
 	}
 };
-api.__handleHTML = function(next) {
+api.__handleHTML = function(next, options) {
+  options = options || {};
+  if (options.css === false) {
+    next();
+  }
+
 	var self = this;
 	var compile = function() {
 		absurd.flush().morph("html").add(HTMLSource).compile(function(err, html) {
@@ -396,7 +406,7 @@ api.__handleHTML = function(next) {
 			compile();
 		} else if(typeof this.html === 'object') {
 			HTMLSource = extend({}, this.html);
-			compile();		
+			compile();
 		} else {
 			next();
 		}
@@ -422,7 +432,7 @@ api.__append = function(next) {
 	return this;
 }
 var cache = { events: {} };
-api.__handleEvents = function(next) {		
+api.__handleEvents = function(next) {
 	if(this.el) {
 		var self = this;
 		var registerEvent = function(el) {
@@ -510,13 +520,13 @@ api.__handleAsyncFunctions = function(next) {
 			for(var i=0; i<els.length; i++) {
 				funcs.push(els[i]);
 			}
-		}		
+		}
 		if(funcs.length === 0) {
 			next();
 		} else {
 			var self = this;
 			(function callFuncs() {
-				if(funcs.length === 0) {						
+				if(funcs.length === 0) {
 					next();
 				} else {
 					var el = funcs.shift(),
@@ -536,11 +546,11 @@ api.__handleAsyncFunctions = function(next) {
 					}
 				}
 			})();
-		}			
+		}
 	} else {
 		next();
-	}	
-	return this;	
+	}
+	return this;
 }
 api.async = function() {
 	var args = Array.prototype.slice.call(arguments, 0),
@@ -567,27 +577,28 @@ api.wire = function(event) {
 };
 var isPopulateInProgress = false;
 api.populate = function(options) {
+  options = options || {};
 	if(isPopulateInProgress) return;
 	isPopulateInProgress = true;
 	queue([
 		api.__handleCSS,
 		api.__handleHTML,
-		api.__append, 
+		api.__append,
 		api.__handleEvents,
 		api.__handleAsyncFunctions,
 		function() {
 			isPopulateInProgress = false;
 			async = { funcs: {}, index: 0 }
 			var data = {
-				css: CSS, 
-				html: { 
-					element: this.el 
+				css: CSS,
+				html: {
+					element: this.el
 				}
 			};
 			this.dispatch("populated", data);
 			if(options && typeof options.callback === 'function') { options.callback(data); }
 		}
-	], this);
+	], this, options);
 	return this;
 };
 api.str2DOMElement = str2DOMElement;
@@ -658,7 +669,7 @@ absurd.di.register('router', {
 	remove: function(param) {
 		for(var i=0, r; i<this.routes.length, r = this.routes[i]; i++) {
 			if(r.handler === param || r.re === param) {
-				this.routes.splice(i, 1); 
+				this.routes.splice(i, 1);
 				return this;
 			}
 		}
@@ -696,7 +707,7 @@ absurd.di.register('router', {
 				match.shift();
 				this.routes[i].handler.apply(this.host || {}, match);
 				return this;
-			}			
+			}
 		}
 		return this;
 	},
@@ -751,7 +762,7 @@ absurd.di.register('ajax', {
 						}
 						self.alwaysCallback && self.alwaysCallback.apply(self.host, [self.xhr]);
 					}
-					
+
 					if(ops.method == 'get') {
 						this.xhr.open("GET", ops.url + getParams(ops.data, ops.url), true);
 					} else {
@@ -763,10 +774,10 @@ absurd.di.register('ajax', {
 					}
 					if(ops.headers && typeof ops.headers == 'object') {
 						this.setHeaders(ops.headers);
-					}		
-					setTimeout(function() { 
-						ops.method == 'get' ? self.xhr.send() : self.xhr.send(getParams(ops.data)); 
-					}, 20);	
+					}
+					setTimeout(function() {
+						ops.method == 'get' ? self.xhr.send() : self.xhr.send(getParams(ops.data));
+					}, 20);
 				}
 				return this;
 			},
@@ -805,7 +816,7 @@ var dom = function(el, parent) {
 			parent = parent && typeof parent === 'string' ? qs.apply(host, [parent]) : parent;
 			api.el = qs(el, parent || host.el || document);
 		break;
-		case 'object': 
+		case 'object':
 			if(typeof el.nodeName != 'undefined') {
 	            api.el = el;
 	        } else {
@@ -873,7 +884,7 @@ var dom = function(el, parent) {
                 	return this.el.value;
             	}
         	break;
-        	default: 
+        	default:
         		if(set) {
         			this.el.innerHTML = value;
         		} else {
@@ -951,8 +962,8 @@ var client = function() {
 			return destination;
 		};
 
-		var _api = { 
-				defaultProcessor: lib.processors.css.CSS() 
+		var _api = {
+				defaultProcessor: lib.processors.css.CSS()
 			},
 			_rules = {},
 			_storage = {},
@@ -970,7 +981,7 @@ var client = function() {
 			}
 		}
 		_api.getPlugins = function() {
-			return _plugins;		
+			return _plugins;
 		}
 		_api.getStorage = function() {
 			return _storage;
@@ -982,9 +993,9 @@ var client = function() {
 			_api.defaultProcessor = lib.processors.css.CSS();
 			return _api;
 		}
-		_api['import'] = function() { 
+		_api['import'] = function() {
 			if(_api.callHooks("import", arguments)) return _api;
-			return _api; 
+			return _api;
 		}
 		_api.handlecss = function(parsed, path) {
 			var plugins = _api.getPlugins();
@@ -1007,7 +1018,7 @@ var client = function() {
 		_api.handlecssimport = function(rule, cssPath) {
 			return _api;
 		}
-		_api.handlecssrule = function(rule, stylesheet) {		
+		_api.handlecssrule = function(rule, stylesheet) {
 			var absurdObj = {}, absurdProps = {};
 			if(rule.declarations && rule.declarations.length > 0) {
 				for(var i=0; decl=rule.declarations[i]; i++) {
@@ -1053,7 +1064,7 @@ var client = function() {
 		_api.components = (function(api) {
 			var extend = lib.helpers.Extend,
 				clone = lib.helpers.Clone,
-				comps = {}, 
+				comps = {},
 				instances = [],
 				events = extend({}, Component()),
 				exports = {};
@@ -1130,7 +1141,7 @@ var client = function() {
 
 		/******************************************* Copied directly from /lib/API.js */
 
-		// client side specific methods 
+		// client side specific methods
 		_api.compile = function(callback, options) {
 			if(_api.callHooks("compile", arguments)) return _api;
 			var defaultOptions = {
@@ -1160,7 +1171,7 @@ var client = function() {
 						if(_api.callHooks(method, arguments)) return _api;
 						return f.apply(_api, arguments);
 					}
-				})(method);		
+				})(method);
 			}
 		}
 
@@ -1236,7 +1247,7 @@ var client = function() {
 	    		for(var key in o) {
 	    			if(typeof o[key] == 'function') {
 	    				o[key] = this.resolve(o[key], o);
-	    			} else if(o[key] instanceof Array && o[key].length == 2 && typeof o[key][0] == 'string' && typeof o[key][1] == 'function') {	    				
+	    			} else if(o[key] instanceof Array && o[key].length == 2 && typeof o[key][0] == 'string' && typeof o[key][1] == 'function') {
 	    				o[key] = this.resolve(o[key][0], o[key][1], o);
 	    			}
 	    		}
@@ -1291,14 +1302,14 @@ lib.api.add = function(API) {
 		if(/, ?/g.test(selector) && options.combineSelectors) {
 			var parts = selector.replace(/, /g, ',').split(',');
 			for(var i=0; i<parts.length, p=parts[i]; i++) {
-				addRule(p, props, stylesheet, parentSelector);	
+				addRule(p, props, stylesheet, parentSelector);
 			}
 			return;
 		}
 
 		// check for plugin
 		if(checkAndExecutePlugin(null, selector, props, stylesheet, parentSelector)) {
-			return;	
+			return;
 		}
 
 		// if array is passed
@@ -1312,9 +1323,9 @@ lib.api.add = function(API) {
 			return;
 		}
 
-		var _props = {}, 
+		var _props = {},
 			_selector = selector,
-			_objects = {}, 
+			_objects = {},
 			_functions = {};
 
 		// processing props
@@ -1349,7 +1360,7 @@ lib.api.add = function(API) {
 		});
 
 		for(var prop in _objects) {
-			// check for pseudo classes			
+			// check for pseudo classes
 			if(prop.charAt(0) === ":") {
 				addRule(selector + prop, _objects[prop], stylesheet, parentSelector);
 		    // check for ampersand operator
@@ -1377,7 +1388,7 @@ lib.api.add = function(API) {
 				// selector, props, stylesheet, parentSelector
 				addRule(
 					selector.substr(1, selector.length-1) + (typeof parentSelector !== "undefined" ? " " + parentSelector : '') + " " + prop,
-					_objects[prop], 
+					_objects[prop],
 					stylesheet
 				);
 			// check for plugins
@@ -1391,7 +1402,7 @@ lib.api.add = function(API) {
 			o[prop] = _functions[prop]();
 			addRule(selector, o, stylesheet, parentSelector);
 		}
-		
+
 	}
 
 	var add = function(rules, stylesheet, opts) {
@@ -1444,15 +1455,15 @@ lib.api.add = function(API) {
 							// appending values
 							if(value.toString().charAt(0) === "+") {
 								if(current && current[propNew]) {
-									current[propNew] = current[propNew] + ", " + value.substr(1, value.length-1);	
+									current[propNew] = current[propNew] + ", " + value.substr(1, value.length-1);
 								} else {
-									current[propNew] = value.substr(1, value.length-1);	
+									current[propNew] = value.substr(1, value.length-1);
 								}
 							} else if(value.toString().charAt(0) === ">") {
 								if(current && current[propNew]) {
-									current[propNew] = current[propNew] + " " + value.substr(1, value.length-1);	
+									current[propNew] = current[propNew] + " " + value.substr(1, value.length-1);
 								} else {
-									current[propNew] = value.substr(1, value.length-1);	
+									current[propNew] = value.substr(1, value.length-1);
 								}
 							} else {
 								current[propNew] = value;
@@ -1460,7 +1471,7 @@ lib.api.add = function(API) {
 						} else {
 							current[propNew] = value;
 						}
-						
+
 					}
 				}
 				allRules[uid + selector] = current;
@@ -1519,7 +1530,7 @@ lib.api.compile = function(api) {
 			},
 			options
 		);
-		
+
 	}
 }
 
@@ -1615,7 +1626,7 @@ var metamorphosis = {
 				api.getRules("mainstream").push(c);
 			}
 			return true;
-		});	
+		});
 	},
 	jsonify: function(api) {
 		api.jsonify = true;
@@ -1638,7 +1649,7 @@ lib.api.plugin = function(api) {
 		api.getPlugins()[name] = func;
 		return api;
 	}
-	return plugin;	
+	return plugin;
 }
 lib.api.raw = function(api) {
 	return function(raw) {
@@ -1654,12 +1665,12 @@ var fs = require("fs"),
 	path = require("path");
 
 lib.api.rawImport = function(API) {
-	
+
 	var importFile = function(path) {
 		var fileContent = fs.readFileSync(path, {encoding: "utf8"});
 		API.raw(fileContent);
 	}
-	
+
 	return function(path) {
 		var p, _i, _len;
 		if (typeof path === 'string') {
@@ -2249,7 +2260,7 @@ function trim(str) {
 lib.helpers.Clone = function clone(item) {
     if (!item) { return item; } // null, undefined values check
 
-    var types = [ Number, String, Boolean ], 
+    var types = [ Number, String, Boolean ],
         result;
 
     // normalizing primitives if someone did new String('aaa'), or new Number('444');
@@ -2263,13 +2274,13 @@ lib.helpers.Clone = function clone(item) {
     if (typeof result == "undefined") {
         if (Object.prototype.toString.call( item ) === "[object Array]") {
             result = [];
-            item.forEach(function(child, index, array) { 
+            item.forEach(function(child, index, array) {
                 result[index] = clone( child );
             });
         } else if (typeof item == "object") {
             // testing that this is DOM
             if (item.nodeType && typeof item.cloneNode == "function") {
-                var result = item.cloneNode( true );    
+                var result = item.cloneNode( true );
             } else if (!item.prototype) { // check that this is a literal
                 if (item instanceof Date) {
                     result = new Date(item);
@@ -2318,7 +2329,7 @@ lib.helpers.ColorLuminance = function (hex, lum) {
 	return rgb;
 }
 lib.helpers.Extend = function() {
-	var process = function(destination, source) {	
+	var process = function(destination, source) {
 	    for(var key in source) {
 			if(Object.prototype.hasOwnProperty.call(source, key)) {
 			    destination[key] = source[key];
@@ -2370,10 +2381,10 @@ lib.helpers.Prefixes = {
 	nonPrefixProp: function(prop) {
 		var p = prefixExtract(prop);
 		if(p.prefix !== false) {
-			if(p.prefix == '') { 
+			if(p.prefix == '') {
 				p.prefix = '-';
 			} else {
-				p.prefix = '-' + p.prefix + '-'; 
+				p.prefix = '-' + p.prefix + '-';
 			}
 		}
 		return p;
@@ -2396,8 +2407,8 @@ lib.helpers.TransformUppercase = function(prop, options) {
 }
 var compileComponent = function(input, callback, options) {
 
-	var css = "", 
-		html = "", 
+	var css = "",
+		html = "",
 		all = [],
 		api = options.api;
 		cssPreprocessor = require(__dirname + "/../css/CSS.js")(),
@@ -2471,7 +2482,7 @@ var compileComponent = function(input, callback, options) {
 			)
 		});
 	});
-	
+
 }
 lib.processors.component.Component = function() {
 	var processor = function(rules, callback, options) {
@@ -2532,7 +2543,7 @@ var toJSON = function(rules, options) {
 				for(var prop in styles[selector]) {
 					result[selector][prop] = styles[selector][prop];
 				}
-			}			
+			}
 		} else if(stylesheet.indexOf('@media') >= 0) {
 			result[stylesheet] = {};
 			for(var selector in styles) {
@@ -2559,9 +2570,9 @@ var combineSelectors = function(rules, preventCombining) {
 		var props = rules[selector];
 		for(var prop in props) {
 			map.push({
-				selector: selector, 
-				prop: prop, 
-				value: props[prop], 
+				selector: selector,
+				prop: prop,
+				value: props[prop],
 				combine: preventCombining.indexOf('|' + prop) < 0 && selector.indexOf('@font-face') < 0
 			});
 		}
@@ -2586,7 +2597,7 @@ var combineSelectors = function(rules, preventCombining) {
 			arr[map[i].selector][map[i].prop] = map[i].value;
 		}
 	}
-	
+
 	return arr;
 }
 
@@ -2633,7 +2644,7 @@ lib.processors.css.CSS = function() {
 				css += toCSS(r, options);
 			} else {
 				css += stylesheet + " {" + newline + toCSS(r, options, ['  ', '    ']) + "}" + newline;
-			}		
+			}
 		}
 		css = replaceDefined(css, options);
 		// Dynamic CSS
@@ -2653,7 +2664,7 @@ lib.processors.css.CSS = function() {
 	return processor;
 }
 
-lib.processors.css.plugins.charset = function() {	
+lib.processors.css.plugins.charset = function() {
 	return function(api, charsetValue) {
 		if(typeof charsetValue === "string") {
 			api.raw("@charset: \"" + charsetValue + "\";");
@@ -2663,7 +2674,7 @@ lib.processors.css.plugins.charset = function() {
 		}
 	}
 }
-lib.processors.css.plugins.document = function() {	
+lib.processors.css.plugins.document = function() {
 	return function(api, value) {
 		if(typeof value === "object") {
 			var stylesheet = '';
@@ -2717,8 +2728,8 @@ lib.processors.css.plugins.keyframes = function() {
 					content += "}";
 					content = content + "\n" + content.replace("@keyframes", "@-webkit-keyframes");
 					api.raw(content);
-				}, {combineSelectors: false});	
-			}			
+				}, {combineSelectors: false});
+			}
 		}
 	}
 }
@@ -2743,7 +2754,7 @@ lib.processors.css.plugins.media = function() {
 						}
 					}
 				}
-				
+
 			}
 			content += processor({mainstream: rules});
 			content += "}";
@@ -2755,7 +2766,7 @@ lib.processors.css.plugins.media = function() {
 		}
 	}
 }
-lib.processors.css.plugins.namespace = function() {	
+lib.processors.css.plugins.namespace = function() {
 	return function(api, value) {
 		if(typeof value === "string") {
 			api.raw("@namespace: \"" + value + "\";");
@@ -2765,10 +2776,10 @@ lib.processors.css.plugins.namespace = function() {
 		}
 	}
 }
-lib.processors.css.plugins.page = function() {	
+lib.processors.css.plugins.page = function() {
 	return function(api, value) {
 		if(typeof value === "object") {
-			var content = ""; 
+			var content = "";
 			if(value.selectors.length > 0) {
 				content += "@page " + value.selectors.join(", ") + " {\n";
 			} else {
@@ -2790,7 +2801,7 @@ lib.processors.css.plugins.supports = function() {
 		if(typeof value === "object") {
 			var content = '@supports ' + value.supports + " {\n";
 			var rules = {};
-			for(var i=0; rule=value.rules[i]; i++) {				
+			for(var i=0; rule=value.rules[i]; i++) {
 				var r = rules[rule.selectors.toString()] = {};
 				if(rule.type === "rule") {
 					for(var j=0; declaration=rule.declarations[j]; j++) {
@@ -2869,7 +2880,7 @@ var process = function(tagName, obj) {
 			case "_":
 				addToChilds(value);
 			break;
-			case "_tpl": 
+			case "_tpl":
 				if(typeof value == "string") {
 					addToChilds(processTemplate(value));
 				} else if(value instanceof Array) {
@@ -2900,7 +2911,7 @@ var process = function(tagName, obj) {
 			default:
 				switch(typeof value) {
 					case "string": addToChilds(process(directiveName, value)); break;
-					case "object": 
+					case "object":
 						if(value && value.length && value.length > 0) {
 							var tmp = '';
 							for(var i=0; v=value[i]; i++) {
@@ -2960,7 +2971,7 @@ lib.processors.html.HTML = function() {
 	return processor;
 }
 lib.processors.html.helpers.PropAnalyzer = function(prop) {
-	var res = { 
+	var res = {
 			tag: '',
 			attrs: ''
 		},
@@ -3038,10 +3049,10 @@ lib.processors.html.helpers.PropAnalyzer = function(prop) {
 	return res;
 }
 lib.processors.html.helpers.TemplateEngine = function(html, options) {
-	var re = /<%(.+?)%>/g, 
-		reExp = /(^( )?(var|if|for|else|switch|case|break|{|}|;))(.*)?/g, 
-		code = 'with(obj) { var r=[];\n', 
-		cursor = 0, 
+	var re = /<%(.+?)%>/g,
+		reExp = /(^( )?(var|if|for|else|switch|case|break|{|}|;))(.*)?/g,
+		code = 'with(obj) { var r=[];\n',
+		cursor = 0,
 		result;
 	var add = function(line, js) {
 		js? (code += line.match(reExp) ? line + '\n' : 'r.push(' + line + ');\n') :
